@@ -7,15 +7,19 @@ pipeline {
         ECR_REPO = "simple-pipeline"
         IMAGE_TAG = "latest"
         ECR_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+        EC2_USER = "ubuntu"
+        EC2_HOST = "44.243.7.88"  // EC2 Public IP
     }
 
     stages {
         stage('Login to ECR') {
             steps {
-                sh '''
-                aws ecr get-login-password --region $AWS_REGION | \
-                docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                '''
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'simplepipeline']]) {
+                    sh '''
+                    aws ecr get-login-password --region $AWS_REGION | \
+                    docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                    '''
+                }
             }
         }
 
@@ -39,16 +43,18 @@ pipeline {
 
         stage('Deploy on EC2') {
             steps {
-                sh '''
-                ssh -o StrictHostKeyChecking=no ubuntu@44.243.7.88
-                aws ecr get-login-password --region $AWS_REGION | \
-                docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com &&
-                docker pull ${ECR_URI} &&
-                docker stop nodeapp || true &&
-                docker rm nodeapp || true &&
-                docker run -d --name nodeapp -p 80:3000 ${ECR_URI}
-                "
-                '''
+                sshagent(credentials: ['deployserver']) {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "
+                    aws ecr get-login-password --region $AWS_REGION | \
+                    docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com &&
+                    docker pull ${ECR_URI} &&
+                    docker stop nodeapp || true &&
+                    docker rm nodeapp || true &&
+                    docker run -d --name nodeapp -p 80:3000 ${ECR_URI}
+                    "
+                    '''
+                }
             }
         }
     }
