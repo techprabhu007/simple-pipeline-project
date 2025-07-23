@@ -8,13 +8,13 @@ pipeline {
         IMAGE_TAG = "latest"
         ECR_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
         EC2_USER = "ubuntu"
-        EC2_HOST = "44.243.7.88"  // EC2 Public IP
+        EC2_HOST = "44.243.7.88"
     }
 
     stages {
         stage('Login to ECR') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'simplepipeline']]) {
+                withAWS(region: "${AWS_REGION}", credentials: 'simplepipeline') {
                     sh '''
                     aws ecr get-login-password --region $AWS_REGION | \
                     docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
