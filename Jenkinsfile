@@ -7,8 +7,6 @@ pipeline {
         ECR_REPO = "simple-pipeline"
         IMAGE_TAG = "latest"
         ECR_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-        EC2_USER = "ubuntu"
-        EC2_HOST = "44.243.7.88"  // EC2 Public IP
     }
 
     stages {
@@ -43,9 +41,9 @@ pipeline {
 
         stage('Deploy on EC2') {
             steps {
-                sshagent(credentials: ['deployserver']) {
+                withCredentials([sshUserPrivateKey(credentialsId: 'deployserver', keyFileVariable: 'SSH_KEY')]) {
                     sh '''
-                    ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "
+                    ssh -o StrictHostKeyChecking=no -i $SSH_KEY ubuntu@44.243.7.88 "
                     aws ecr get-login-password --region $AWS_REGION | \
                     docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com &&
                     docker pull ${ECR_URI} &&
@@ -67,12 +65,6 @@ pipeline {
             docker rmi ${ECR_REPO}:latest || true
             docker system prune -f || true
             '''
-        }
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed. Please check the logs.'
         }
     }
 }
